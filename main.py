@@ -140,6 +140,7 @@ from src.line_notifier import LineNotifier
 from src.indicator_calculator import IndicatorCalculator
 from src.daily_stock_summary import DailyStockSummaryGenerator
 from src.rs_rate_calculator import RSRateCalculator
+from src.rs_max_calculator import RSRateMaxMinUpdater
 import requests
 import warnings
 
@@ -186,7 +187,7 @@ class DailyStockTasks:
         self.indicator_calculator = IndicatorCalculator(data_dir=self.data_dir)
         self.summary_generator = DailyStockSummaryGenerator(data_dir=self.data_dir, output_directory=self.output_dir)
         self.rs_rate_calculator = RSRateCalculator(data_dir=self.data_dir, output_directory=self.output_dir)
-
+        self.rs_max_min_calculator = RSRateMaxMinUpdater(data_dir=self.data_dir, n_values=[20, 50, 250], n_day_sort=[10, 20, 50, 250])
     def update_data(self, symbols: list, rewrite: bool = True):
         """Step 1: 更新每日資料"""
         split_symbols = [symbols[i:i + 10] for i in range(0, len(symbols), 10)]
@@ -224,15 +225,25 @@ class DailyStockTasks:
         """Step 4: 計算 RS rate"""
         self.rs_rate_calculator.update_daily_rs_rate(date, n_values)
 
+    def calculate_rs_rate_max_min(self, symbols: list):
+        """Step 5: 計算 RS rate 最大值和最小值"""
+        self.rs_max_min_calculator.update_rs_rate_max_min(symbols=symbols)
+
+
 
 def main():
     ## 定義要更新的股票代號
-    symbols, allstock_info = get_allstock_info()
+    
 
     ## 設置資料目錄和 Line Notifier
     data_dir = CONFIG.get("data_dir")
     output_directory = CONFIG.get("output_directory")
     line_token = CONFIG.get("line_token")
+    if CONFIG.get("specific_symbols_list"):
+        symbols = CONFIG.get("specific_symbols_list")
+    else:
+        symbols, allstock_info = get_allstock_info()
+        
 
     ## 初始化 DailyStockTasks
     tasks = DailyStockTasks(data_dir=data_dir, output_dir=output_directory, line_token=line_token)
@@ -279,6 +290,12 @@ def main():
         tasks.calculate_rs_rate(date=today.strftime("%Y-%m-%d"))
         spend_time['calculate_rs_rate'] = datetime.now() - start_time
 
+    ## Step 5: 計算 RS rate 最大值和最小值
+    if DO_TASKS.get('calculate_rs_rate_max_min'):
+        start_time = datetime.now()
+        tasks.calculate_rs_rate_max_min(symbols=symbols)
+        spend_time['calculate_rs_rate_max_min'] = datetime.now() - start_time
+
     ## 通知執行時間
     if spend_time:
         tasks.notifier.send_message(f"程式執行時間：\n{spend_time}")
@@ -286,15 +303,17 @@ def main():
 
 if __name__ == "__main__":
     DO_TASKS = {
-    'update_daily_data': False,
-    'calculate_indicators': False,
+    'update_daily_data': True,
+    'calculate_indicators': True,
     'generate_summary': True,
-    'calculate_rs_rate': True
+    'calculate_rs_rate': True,
+    'calculate_rs_rate_max_min': True
 }
     CONFIG = {
-    "delay_days": 2,
+    "delay_days": 0,
     "data_dir": os.path.join(os.getcwd(), "data_test"),
     "output_directory": "C:/Users/User/Desktop/stock/全個股條件篩選",
-    "line_token": 'u7bfH6ad2gDcHvvPrtHR9sjJ8AYmQ7tNl0VBf7piO4q'
+    "line_token": 'u7bfH6ad2gDcHvvPrtHR9sjJ8AYmQ7tNl0VBf7piO4q',
+    "specific_symbols_list": None # None or ['2330.TW', '2317.TW']
 }
     main()
