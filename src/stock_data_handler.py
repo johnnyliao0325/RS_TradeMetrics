@@ -210,11 +210,11 @@ class StockDataHandler:
 
     def retry_failed_symbols(self, failed_symbols: List[str], symbols: List[str], start_date: datetime, end_date: datetime, rewrite = False) -> None:
         max_retries = 10
-        if not failed_symbols:
+        if len(failed_symbols) == 0:
             return
         for retry in range(max_retries):
             print(f"{retry+1} times retry. Start to retrying {len(failed_symbols)} failed symbols:")
-            if not failed_symbols:
+            if len(failed_symbols) == 0:
                 break
             retry_symbols = failed_symbols
             failed_symbols = []
