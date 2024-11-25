@@ -213,21 +213,24 @@ class StockDataHandler:
         if len(failed_symbols) == 0:
             return
         for retry in range(max_retries):
-            print(f"{retry+1} times retry. Start to retrying {len(failed_symbols)} failed symbols:")
             if len(failed_symbols) == 0:
                 break
+            print(f"{retry+1} times retry. Start to retrying {len(failed_symbols)} failed symbols:")        
             retry_symbols = failed_symbols
             failed_symbols = []
-            new_data = self.fetch_stock_data(retry_symbols, start_date, end_date)
-            if new_data.empty:
-                failed_symbols = retry_symbols
-                print(f"Retry times: {retry + 1}. Will retry again.")
-                continue
-            for symbol in retry_symbols:
-                if rewrite:
-                    self.rewrite_symbol_data(symbol, new_data, start_date, failed_symbols)
-                else:
-                    self.update_symbol_data(symbol, new_data, start_date, failed_symbols)
+            # split the retry_symbols into smaller chunks (2 symbols per chunk)
+            for i in range(0, len(retry_symbols), 2):
+                retry_symbols_chunk = retry_symbols[i:i+2]
+                new_data = self.fetch_stock_data(retry_symbols_chunk, start_date, end_date)
+                if new_data.empty:
+                    failed_symbols.append(retry_symbols_chunk)
+                    print(f"Retry times: {retry + 1}. Failed to fetch data for {i}/{round(len(retry_symbols)/2, 0)} chumk")
+                    continue
+                for symbol in retry_symbols:
+                    if rewrite:
+                        self.rewrite_symbol_data(symbol, new_data, start_date, failed_symbols)
+                    else:
+                        self.update_symbol_data(symbol, new_data, start_date, failed_symbols)
         if failed_symbols:
             self.notifier.send_message(f"Failed to fetch data for {len(failed_symbols)}symbols after retries: {', '.join(failed_symbols)}")
     def fetch_stock_data_by_web(self, symbols: List[str], start_date: datetime, end_date: datetime) -> pd.DataFrame:

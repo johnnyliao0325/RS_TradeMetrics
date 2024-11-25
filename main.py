@@ -143,6 +143,7 @@ from src.rs_rate_calculator import RSRateCalculator
 from src.rs_max_calculator import RSRateMaxMinUpdater
 from src.daily_stock_template_filter import DailyStockTemplateFilter
 from src.rs_rate_manager import RSRateManager
+from src.daily_stock_category_RS_data_updator import StockCategoryRSDataUpdater
 import requests
 import warnings
 
@@ -181,7 +182,7 @@ def get_allstock_info():
 
 
 class DailyStockTasks:
-    def __init__(self, data_dir: str, output_dir: str, line_token: str, ):
+    def __init__(self, base_dir, data_dir: str, output_dir: str, line_token: str, ):
         self.data_dir = data_dir
         self.output_dir = output_dir
         self.notifier = LineNotifier(token=line_token)
@@ -191,6 +192,7 @@ class DailyStockTasks:
         self.rs_rate_calculator = RSRateCalculator(data_dir=self.data_dir, output_directory=self.output_dir)
         self.rs_max_min_calculator = RSRateMaxMinUpdater(data_dir=self.data_dir, output_directory=output_dir, n_values=[20, 50, 250], n_day_sort=[10, 20, 50, 250])
         self.rs_rate_manager = RSRateManager(data_dir=self.data_dir, output_directory=self.output_dir, n_values=[20, 50, 250], n_day_sort=[10, 20, 50, 250])
+        self.stock_category_rs_data_updater = StockCategoryRSDataUpdater(base_path=base_dir)
     def update_data(self, symbols: list, rewrite: bool = True):
         """Step 1: 更新每日資料"""
         split_symbols = [symbols[i:i + 10] for i in range(0, len(symbols), 10)]
@@ -232,10 +234,14 @@ class DailyStockTasks:
         """Step 5: 計算 RS rate 最大值和最小值"""
         self.rs_max_min_calculator.update_rs_rate_max_min(symbols=symbols, today=today)
     
+
+
     def update_rs_rate_info(self, today: datetime, symbols: list):
-        """Step 6: 更新 RS rate 資訊"""
+        """Step 6: 更新 RS rate 資訊 (包括 RS rate 和 RS rate 最大值和最小值)"""
         print(f'today type: {type(today)}')
         self.rs_rate_manager.update_daily_rs_rate_and_max_min(today, symbols)
+
+
 
     def filter_stock(self, output_directory: str, today: datetime, allstock_info: pd.DataFrame):
         """Step 6: 篩選股票"""
@@ -245,15 +251,17 @@ class DailyStockTasks:
             yesterday = today - pd.Timedelta(days=y_i+1)
             yesterday = yesterday.strftime("%Y-%m-%d")
             print(f"Checking {yesterday}...")
-            yesterday_allstock_path = os.path.join(output_directory, f"daily_stock_summary_{yesterday}_with_rs_rate.xlsx")
+            yesterday_allstock_path = os.path.join(output_directory, f"daily_stock_summary_{yesterday}_with_rs_rate_and_maxmin.xlsx")
             if os.path.exists(yesterday_allstock_path):
                 yesterday_allstock = pd.read_excel(yesterday_allstock_path)
                 break
 
-        
-
         filterer = DailyStockTemplateFilter(allstock=allstock, allstock_info=allstock_info, yesterday_allstock=yesterday_allstock)
         daily_stock_template = filterer.run(output_directory=output_directory, today=today)
+
+    def update_category_rs_data(self, today: datetime):
+        """Step 7: 更新類股 RS 資料"""
+        self.stock_category_rs_data_updater.update_stock_category_RS_data(today)
 
 
 def main():
@@ -261,17 +269,24 @@ def main():
     
 
     ## 設置資料目錄和 Line Notifier
+    base_dir = CONFIG.get("base_dir")
     data_dir = CONFIG.get("data_dir")
     output_directory = CONFIG.get("output_directory")
     line_token = CONFIG.get("line_token")
-    if CONFIG.get("specific_symbols_list") is not None:
-        symbols = CONFIG.get("specific_symbols_list")
-        _, allstock_info = get_allstock_info()
-        if symbols[0] != '^TWII':
-            symbols.insert(0, '^TWII')
-    else:
-        symbols, allstock_info = get_allstock_info()
-        symbols = symbols.tolist()
+
+    symbols = CONFIG.get("specific_symbols_list")
+    allstock_info = CONFIG.get("allstock_info")
+
+
+
+    # if CONFIG.get("specific_symbols_list") is not None:
+    #     symbols = CONFIG.get("specific_symbols_list")
+    #     _, allstock_info = get_allstock_info()
+    #     if symbols[0] != '^TWII':
+    #         symbols.insert(0, '^TWII')
+    # else:
+    #     symbols, allstock_info = get_allstock_info()
+    #     symbols = symbols.tolist()
 
     ## 定義起始日期
     delay_days = CONFIG.get("delay_days")
@@ -281,7 +296,7 @@ def main():
 
 
     ## 初始化 DailyStockTasks
-    tasks = DailyStockTasks(data_dir=data_dir, output_dir=output_directory, line_token=line_token)
+    tasks = DailyStockTasks(base_dir=base_dir, data_dir=data_dir, output_dir=output_directory, line_token=line_token)
 
     
     print(f'執行{today}資料, 隔日日期為{tomorrow}, 從{prev_day}開始執行')
@@ -346,26 +361,40 @@ def main():
         tasks.filter_stock(output_directory=output_directory, today=today, allstock_info=allstock_info)
         spend_time['filter_stock'] = datetime.now() - start_time
 
+    if DO_TASKS.get('update_category_rs_data'):
+        start_time = datetime.now()
+        tasks.update_category_rs_data(today=today)
+        spend_time['update_category_rs_data'] = datetime.now() - start_time
+
     ## 通知執行時間
     if spend_time:
         tasks.notifier.send_message(f"程式執行時間：\n{spend_time}")
 
 
 if __name__ == "__main__":
-    DO_TASKS = {
-    'update_data': False,
-    'calculate_indicators': False,
-    'generate_summary': False,
-    'calculate_rs_rate_and_max_min': False,
-    'calculate_rs_rate': False,
-    'calculate_rs_rate_max_min': False,
-    'filter_stock': True
-}
-    CONFIG = {
-    "delay_days": 1,
-    "data_dir": os.path.join(os.getcwd(), "data_test"),
-    "output_directory": "C:/Users/User/Desktop/stock/全個股條件篩選",
-    "line_token": 'u7bfH6ad2gDcHvvPrtHR9sjJ8AYmQ7tNl0VBf7piO4q',
-    "specific_symbols_list": None # None or ['2330.TW', '2317.TW']
-}
-    main()
+    symbols, allstock_info = get_allstock_info()
+    for i in range(0, 2000):
+        try:
+            DO_TASKS = {
+            'update_data': False,
+            'calculate_indicators': False,
+            'generate_summary': False,
+            'calculate_rs_rate_and_max_min': False,
+            'calculate_rs_rate': False,
+            'calculate_rs_rate_max_min': False,
+            'filter_stock': True,
+            'update_category_rs_data': True
+        }
+            CONFIG = {
+            "delay_days": i,
+            "base_dir": "C:/Users/User/Desktop/stock",
+            "data_dir": os.path.join(os.getcwd(), "data_test"),
+            "output_directory": "C:/Users/User/Desktop/stock/全個股條件篩選",
+            "line_token": 'u7bfH6ad2gDcHvvPrtHR9sjJ8AYmQ7tNl0VBf7piO4q',
+            "specific_symbols_list": symbols, # symbols or ['2330.TW', '2317.TW']
+            "allstock_info": allstock_info
+        }
+            main()
+        except Exception as e:
+            print(e)
+            continue
