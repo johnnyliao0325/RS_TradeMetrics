@@ -3,6 +3,7 @@ import os
 from datetime import datetime
 from typing import List
 
+
 class StockCategoryRSDataUpdater:
     def __init__(self, base_path: str):
         """
