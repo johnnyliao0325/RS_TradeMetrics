@@ -1,0 +1,29 @@
+[09:59:27:603] Created By QuoteCom Example
+[09:59:27:603] PushClient[202004XX.X]
+[09:59:27:703] QuoteCom 元件啟動1.4.0.8 [20220222]
+[10:01:39:310] P:Call Connect [Connecting:False,ConnectReady:False]
+[10:01:39:332] P:Call Connect finished
+[10:01:40:011] P:24811153
+[10:01:40:034] P:*24811153
+[10:01:40:034] P:Send<248>Subscribe:UN00196
+[10:01:40:034] Q:MT_CONNECT_READY 10.99.24.151:8000
+[10:01:40:096] P:Send:1502
+[10:01:40:096] P:HBThread Start
+[10:01:40:096] P:FeedPkgThreadHB Start
+[10:01:40:096] P:MT_SUBSCRIBE Msg = UN00196
+[10:01:40:096] P:**24811153
+[10:01:40:181] 
+[10:01:40:196] P:Send<248>Subscribe:NoticeWebQ
+[10:01:40:196] P:Send<248>Subscribe:TW.INFO
+[10:01:40:196] QuoteCom Login:[A123456789] LOGIN_READY
+[10:01:40:196] 可註冊數[1503]:25
+[10:01:40:196] P:MT_SUBSCRIBE Msg = NoticeWebQ
+[10:01:40:196] P:MT_SUBSCRIBE Msg = TW.INFO
+[10:01:42:741] P:Send<248>Subscribe:TW.INDEX
+[10:01:42:753] P:MT_SUBSCRIBE Msg = TW.INDEX
+[10:01:51:240] P:Send:UnsubscribeTW.INDEX
+[10:01:51:240] P:Remove Channel 完成
+[10:28:22:463] Disconnect Enter:
+[10:28:22:474] P:Disconnect :  [HB10:28:00:741;10:28:00:742]
+[10:28:22:474] Q:MT_DISCONNECTED: 
+[10:28:22:478] P:Disconnect Exit :

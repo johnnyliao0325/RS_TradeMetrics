@@ -119,9 +119,8 @@ class StockCategoryRSDataUpdater:
         # 將股票對應到類別
         for stock_id in stock_ids:
             for col in category_df.columns:
-                if stock_id.split('.')[0] in category_df[col].astype(str).values:
-                    mappings.append([col, stock_id.split('.')[0], 1])
-        
+                if str(stock_id).split('.')[0] in category_df[col].astype(str).values:
+                    mappings.append([col, str(stock_id).split('.')[0], 1])
 
         # 計算每個類別 ERS_rate_250 > 80 的股票數量
         mapped_df = pd.DataFrame(mappings, columns=['category', 'ID', 'count'])

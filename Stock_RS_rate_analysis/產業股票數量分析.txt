@@ -1,0 +1,130 @@
+import pandas as pd
+import numpy as np
+import os
+
+class StockDataUpdater:
+    def __init__(self, base_path):
+        """
+        初始化類別，設定基礎路徑
+        :param base_path: 資料根目錄
+        """
+        self.base_path = base_path
+        self.industry_path = os.path.join(base_path, "others", "產業別.xlsx")
+        self.group_path = os.path.join(base_path, "others", "族群_複製.xlsx")
+        self.concept_path = os.path.join(base_path, "others", "概念股_複製.xlsx")
+
+    def load_excel(self, file_path):
+        """
+        載入 Excel 檔案
+        """
+        try:
+            return pd.read_excel(file_path).astype(str)
+        except Exception as e:
+            print(f"Error loading {file_path}: {e}")
+            return None
+
+    def update_rs_industry(self, day):
+        """
+        更新每日產業 RS 資料
+        """
+        industry_df = self.load_excel(self.industry_path)
+        stock_file = f"{self.base_path}/Stock_Data_Collector/全個股條件篩選/{day}選股.xlsx"
+        stock_df = self.load_excel(stock_file)
+
+        if industry_df is None or stock_df is None:
+            print("Required data missing. Skipping RS industry update.")
+            return
+
+        stock_df = stock_df.sort_values(by='ES250rate', ascending=False).head(340)
+        stock_id = stock_df['ID'].astype(str)
+
+        number_of_stock = self._count_stocks_in_industry(industry_df)
+        all_industries = self._map_stocks_to_industries(industry_df, stock_id)
+
+        rs_industry_df = self._calculate_industry_stats(all_industries, number_of_stock)
+
+        self._update_history(
+            day, rs_industry_df, 
+            "Stock_RS_rate_analysis/100產業分析/100產業RS排行.xlsx"
+        )
+
+    def update_top_business_volume(self, day, weight=False):
+        """
+        更新每日產業成交值資料
+        """
+        industry_df = self.load_excel(self.industry_path)
+        stock_file = f"{self.base_path}/Stock_Data_Collector/全個股條件篩選/{day}選股.xlsx"
+        stock_df = self.load_excel(stock_file)
+
+        if industry_df is None or stock_df is None:
+            print("Required data missing. Skipping top business volume update.")
+            return
+
+        stock_df = stock_df.sort_values(by='busness volume(億)', ascending=False).head(340)
+        stock_id = stock_df['ID'].astype(str)
+
+        number_of_stock = self._count_stocks_in_industry(industry_df)
+        all_industries = self._map_stocks_to_industries(industry_df, stock_id, weight)
+
+        top_volume_df = self._calculate_industry_stats(all_industries, number_of_stock)
+
+        file_name = "100產業成交值排行(含權重).xlsx" if weight else "100產業成交值排行.xlsx"
+        self._update_history(
+            day, top_volume_df, 
+            f"Stock_RS_rate_analysis/100產業分析/{file_name}"
+        )
+
+    def _count_stocks_in_industry(self, industry_df):
+        """
+        計算每個產業的股票數量
+        """
+        counts = []
+        for col in industry_df.columns:
+            n = len(industry_df.loc[industry_df[col] != '0', col])
+            counts.append([col, n])
+        return pd.DataFrame(counts, columns=['industry', 'number'])
+
+    def _map_stocks_to_industries(self, industry_df, stock_ids, weighted=False):
+        """
+        將股票對應到各產業
+        """
+        mappings = []
+        for i, stock_id in enumerate(stock_ids):
+            for col in industry_df.columns:
+                if stock_id in industry_df[col].values:
+                    weight = 1
+                    if weighted:
+                        weight = 3 if i < 50 else (2 if i < 100 else 1)
+                    mappings.append([col, stock_id, weight])
+        return pd.DataFrame(mappings, columns=['industry', 'ID', 'count'])
+
+    def _calculate_industry_stats(self, mapped_df, number_df):
+        """
+        計算產業統計
+        """
+        industry_stats = mapped_df.groupby('industry').sum().sort_values(by='count', ascending=False)
+        industry_stats['all number'] = number_df.set_index('industry').loc[industry_stats.index, 'number'].values
+        industry_stats['percentage'] = (100 * industry_stats['count'] / industry_stats['all number']).round(1)
+        return industry_stats.transpose()
+
+    def _update_history(self, day, daily_data, file_path):
+        """
+        更新歷史資料
+        """
+        full_path = os.path.join(self.base_path, file_path)
+        history = self.load_excel(full_path)
+        if history is None:
+            print(f"Creating new history file at {full_path}")
+            history = pd.DataFrame()
+
+        try:
+            history.drop(day, inplace=True)
+        except KeyError:
+            pass
+
+        daily_data = pd.DataFrame(daily_data.loc['percentage']).transpose()
+        daily_data.index = [day]
+        updated_history = pd.concat([history, daily_data], axis=0).sort_index(ascending=False)
+        updated_history.to_excel(full_path)
+
+        print(f"History updated: {full_path}")

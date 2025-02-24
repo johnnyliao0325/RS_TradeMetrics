@@ -38,18 +38,14 @@ class RSRateManager:
         return summary_data
 
     def update_daily_rs_rate_and_max_min(self, date: datetime, symbols: List[str]) -> None:
-        print(f'date type: {type(date)}')
 
 
         # Step 1: Load the daily summary data
         summary_data = self._load_daily_summary(date)
-        summary_data.to_excel('test_1.xlsx', index=True)
-        print('save test_1.xlsx')
+
         # Step 2: Calculate the daily RS rate
         summary_data = self.calculate_daily_rs_rate(summary_data)
-        summary_data.to_excel('test_2.xlsx', index=True)
-        print('save test_2.xlsx')
-        print(f'date type: {type(date)}')
+
         # Step 3: Iterate through each symbol and update both RS rate and max/min
         MA_type_list = ['', 'E']
         maxmin_columns = []
@@ -61,8 +57,6 @@ class RSRateManager:
                     maxmin_columns.append(f'RS {n_MA}{MA_type}MA is {n_day}MAX')
                     maxmin_columns.append(f'RS {n_MA}{MA_type}MA is {n_day}MIN')
         summary_data[maxmin_columns] = 0
-        summary_data.to_excel('test_3.xlsx', index=True)
-        print('save test_3.xlsx')
         date = date.strftime('%Y-%m-%d')
         for symbol in symbols:
             file_path = os.path.join(self.data_dir, f"{symbol}.csv")
@@ -86,8 +80,7 @@ class RSRateManager:
                     rs_rate_column = f'{ma_type}RS_rate_{n}'
                     if column_name in stock_data.columns and rs_rate_column in summary_data.columns and symbol in summary_data.index:
                         stock_data.loc[date, rs_rate_column] = summary_data.loc[symbol, rs_rate_column]
-                        print(f"Updated {rs_rate_column} for {symbol} on {date}")
-                        print(stock_data.loc[date, rs_rate_column])
+            print(f"Updated {rs_rate_column} for {symbol} on {date}")
 
             # Step 5: Update RS max/min values
             for n_day in self.n_day_sort:

@@ -193,11 +193,11 @@ class DailyStockTasks:
         self.rs_max_min_calculator = RSRateMaxMinUpdater(data_dir=self.data_dir, output_directory=output_dir, n_values=[20, 50, 250], n_day_sort=[10, 20, 50, 250])
         self.rs_rate_manager = RSRateManager(data_dir=self.data_dir, output_directory=self.output_dir, n_values=[20, 50, 250], n_day_sort=[10, 20, 50, 250])
         self.stock_category_rs_data_updater = StockCategoryRSDataUpdater(base_path=base_dir)
-    def update_data(self, symbols: list, rewrite: bool = True):
+    def update_data(self, symbols: list, rewrite: bool = True, today = None, tomorrow = None):
         """Step 1: 更新每日資料"""
         split_symbols = [symbols[i:i + 10] for i in range(0, len(symbols), 10)]
         for symbol_batch in split_symbols:
-            self.stock_handler.update_daily_data(symbol_batch, rewrite=rewrite)
+            self.stock_handler.update_daily_data(symbol_batch, rewrite=rewrite, today=today, tomorrow=tomorrow)
 
     def update_data_for_historical(self, symbols: list, prev_day: datetime, today: datetime, rewrite: bool = True):
         """Step 1: 更新每日資料"""
@@ -243,11 +243,11 @@ class DailyStockTasks:
 
 
 
-    def filter_stock(self, output_directory: str, today: datetime, allstock_info: pd.DataFrame):
+    def filter_stock(self, output_directory: str, today: datetime, allstock_info: pd.DataFrame, mark: str = ''):
         """Step 6: 篩選股票"""
         allstock_path = os.path.join(output_directory, f"daily_stock_summary_{today}_with_rs_rate_and_maxmin.xlsx")
         allstock = pd.read_excel(allstock_path, index_col="ID")
-        for y_i in range(10):
+        for y_i in range(20):
             yesterday = today - pd.Timedelta(days=y_i+1)
             yesterday = yesterday.strftime("%Y-%m-%d")
             print(f"Checking {yesterday}...")
@@ -257,7 +257,7 @@ class DailyStockTasks:
                 break
 
         filterer = DailyStockTemplateFilter(allstock=allstock, allstock_info=allstock_info, yesterday_allstock=yesterday_allstock)
-        daily_stock_template = filterer.run(output_directory=output_directory, today=today)
+        daily_stock_template = filterer.run(output_directory=output_directory, today=today, mark=mark)
 
     def update_category_rs_data(self, today: datetime):
         """Step 7: 更新類股 RS 資料"""
@@ -307,14 +307,20 @@ def main():
     spend_time = {}
 
     ## print要執行的任務
+    do_task_text = f"{today.strftime('%Y-%m-%d')} 開始執行任務：\n"
+    print("開始執行任務：\n")
+    tasks_number = 1
     for task, do_task in DO_TASKS.items():
         if do_task:
-            print(f"執行任務：{task}")
+            do_task_text += f"{tasks_number}：{task}\n"
+            print(f"{tasks_number}：{task}\n")
+            tasks_number += 1
+    tasks.notifier.send_message(do_task_text)
 
     ## Step 1: 更新每日數據
     if DO_TASKS.get('update_data'):
         start_time = datetime.now()
-        tasks.update_data(symbols=symbols, rewrite=True)
+        tasks.update_data(symbols=symbols, rewrite=True, today=today, tomorrow=tomorrow)
         # tasks.update_data_for_historical(symbols=symbols, prev_day=prev_day, today=today, rewrite=True)
         spend_time['update_daily_data'] = datetime.now() - start_time
 
@@ -358,7 +364,7 @@ def main():
 
     if DO_TASKS.get('filter_stock'):
         start_time = datetime.now()
-        tasks.filter_stock(output_directory=output_directory, today=today, allstock_info=allstock_info)
+        tasks.filter_stock(output_directory=output_directory, today=today, allstock_info=allstock_info, mark=CONFIG.get("filter_stock_mark"))
         spend_time['filter_stock'] = datetime.now() - start_time
 
     if DO_TASKS.get('update_category_rs_data'):
@@ -367,19 +373,29 @@ def main():
         spend_time['update_category_rs_data'] = datetime.now() - start_time
 
     ## 通知執行時間
+    message_text = "程式執行時間：\n"
+    total_time = 0
+    for task, time in spend_time.items():
+        time = round(time.total_seconds(), 1)
+        message_text += f"{task}: {time} 秒\n"
+        total_time += time
+    message_text += f"總計: {round(total_time, 1)} 秒"
+
     if spend_time:
-        tasks.notifier.send_message(f"程式執行時間：\n{spend_time}")
+        tasks.notifier.send_message(message_text)
 
 
 if __name__ == "__main__":
     symbols, allstock_info = get_allstock_info()
-    for i in range(0, 2000):
+    symbols = symbols.tolist()
+    for i in [0]: # 0, 1, 2, 3, 4, 5, 6, 7, 8, 9
         try:
+            
             DO_TASKS = {
-            'update_data': False,
-            'calculate_indicators': False,
-            'generate_summary': False,
-            'calculate_rs_rate_and_max_min': False,
+            'update_data': True,
+            'calculate_indicators': True,
+            'generate_summary': True,
+            'calculate_rs_rate_and_max_min': True,
             'calculate_rs_rate': False,
             'calculate_rs_rate_max_min': False,
             'filter_stock': True,
@@ -392,7 +408,8 @@ if __name__ == "__main__":
             "output_directory": "C:/Users/User/Desktop/stock/全個股條件篩選",
             "line_token": 'u7bfH6ad2gDcHvvPrtHR9sjJ8AYmQ7tNl0VBf7piO4q',
             "specific_symbols_list": symbols, # symbols or ['2330.TW', '2317.TW']
-            "allstock_info": allstock_info
+            "allstock_info": allstock_info,
+            "filter_stock_mark": ""
         }
             main()
         except Exception as e:

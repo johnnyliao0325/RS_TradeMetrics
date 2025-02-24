@@ -1,5 +1,6 @@
 import yfinance as yf
 import pandas as pd
+import numpy as np
 from datetime import datetime
 import os
 from typing import List
@@ -15,15 +16,22 @@ class StockDataHandler:
 
     def fetch_stock_data(self, symbols: List[str], start_date: datetime, end_date: datetime) -> pd.DataFrame:
         try:
-            data = yf.download(symbols, start=start_date, end=end_date, group_by='ticker', )
+            data = yf.download(symbols, start=start_date, end=end_date, group_by='ticker', auto_adjust=False)
+            ## if data include 2 days, drop the first day
+            if len(data) > 1:
+                data = data.drop(data.index[0])
+            print(data)
             return data
         except Exception as e:
-            print(f"Error fetching data for {symbols}: {e}")
+            print(f"Error fetching data for {len(symbols)} symbols: {e}")
             return pd.DataFrame()
 
-    def update_daily_data(self, symbols: List[str], rewrite = False) -> None:
-        today = datetime.now().date()
-        tomorrow = today + pd.Timedelta(days=1)
+    def update_daily_data(self, symbols: List[str], rewrite = False, today = None, tomorrow = None) -> None:
+        if today is None:
+            today = datetime.now().date()
+            tomorrow = today + pd.Timedelta(days=1)
+        else:
+            pass
         failed_symbols = []
         # Fetch data for all symbols at once to improve efficiency
         new_data = self.fetch_stock_data(symbols, today, tomorrow)
@@ -221,11 +229,16 @@ class StockDataHandler:
             # split the retry_symbols into smaller chunks (2 symbols per chunk)
             for i in range(0, len(retry_symbols), 2):
                 retry_symbols_chunk = retry_symbols[i:i+2]
+                print(retry_symbols_chunk)
                 new_data = self.fetch_stock_data(retry_symbols_chunk, start_date, end_date)
                 if new_data.empty:
-                    failed_symbols.append(retry_symbols_chunk)
+                    import numpy as np
+                    failed_symbols.extend(np.array(retry_symbols_chunk).flatten().tolist())
                     print(f"Retry times: {retry + 1}. Failed to fetch data for {i}/{round(len(retry_symbols)/2, 0)} chumk")
                     continue
+                else:
+                    # print(f"Retry times: {retry + 1}. Fetch data successfully for {i}/{round(len(retry_symbols)/2, 0)} chumk")
+                    print(new_data)
                 for symbol in retry_symbols:
                     if rewrite:
                         self.rewrite_symbol_data(symbol, new_data, start_date, failed_symbols)
