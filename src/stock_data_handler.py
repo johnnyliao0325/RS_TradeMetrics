@@ -36,7 +36,10 @@ class StockDataHandler:
         # Fetch data for all symbols at once to improve efficiency
         new_data = self.fetch_stock_data(symbols, today, tomorrow)
         if new_data.empty:
-            self.notifier.send_message("Failed to fetch data for all symbols.")
+            if self.notifier is not None:
+                self.notifier.send_message("Failed to fetch data for all symbols.")
+            else:
+                print("Failed to fetch data for all symbols.")
             failed_symbols = symbols
             self.retry_failed_symbols(failed_symbols, symbols, today, tomorrow, rewrite)
             return
@@ -62,7 +65,10 @@ class StockDataHandler:
         # Fetch data for all symbols within the specified date range
         new_data = self.fetch_stock_data(symbols, start_date, end_date)
         if new_data.empty:
-            self.notifier.send_message("Failed to fetch historical data for all symbols.")
+            if self.notifier is not None:
+                self.notifier.send_message("Failed to fetch historical data for all symbols.")
+            else:
+                print("Failed to fetch historical data for all symbols.")
             return
 
         for symbol in symbols:
@@ -245,7 +251,10 @@ class StockDataHandler:
                     else:
                         self.update_symbol_data(symbol, new_data, start_date, failed_symbols)
         if failed_symbols:
-            self.notifier.send_message(f"Failed to fetch data for {len(failed_symbols)}symbols after retries: {', '.join(failed_symbols)}")
+            if self.notifier is not None:
+                self.notifier.send_message(f"Failed to fetch data for {len(failed_symbols)}symbols after retries: {', '.join(failed_symbols)}")
+            else:
+                print(f"Failed to fetch data for {len(failed_symbols)}symbols after retries: {', '.join(failed_symbols)}")
     def fetch_stock_data_by_web(self, symbols: List[str], start_date: datetime, end_date: datetime) -> pd.DataFrame:
         # fetch data from yahoo finance by web
         pass

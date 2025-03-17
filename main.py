@@ -1,137 +1,3 @@
-# import os
-# from datetime import datetime
-# from src.stock_data_handler import StockDataHandler
-# from src.line_notifier import LineNotifier
-# from src.indicator_calculator import IndicatorCalculator
-# from src.daily_stock_summary import DailyStockSummaryGenerator
-# from src.rs_rate_calculator import RSRateCalculator
-# import requests
-# import pandas as pd
-# import warnings
-# warnings.filterwarnings("ignore")
-# def get_allstock_info():
-#     url = "https://isin.twse.com.tw/isin/class_main.jsp?owncode=&stockname=&isincode=&market=1&issuetype=1&industry_code=&Page=1&chklike=Y"
-#     response = requests.get(url)
-#     listed = pd.read_html(response.text)[0]
-#     listed.columns = listed.iloc[0,:]
-#     listed = listed[["有價證券代號","有價證券名稱","市場別","產業別","公開發行/上市(櫃)/發行日"]]
-#     listed = listed.iloc[1:]
-
-#     # ============上櫃股票df============
-#     urlTWO = "https://isin.twse.com.tw/isin/class_main.jsp?owncode=&stockname=&isincode=&market=2&issuetype=&industry_code=&Page=1&chklike=Y"
-#     response = requests.get(urlTWO)
-#     listedTWO = pd.read_html(response.text)[0]
-#     listedTWO.columns = listedTWO.iloc[0,:]
-#     listedTWO = listedTWO.loc[listedTWO['有價證券別'] == '股票']
-#     listedTWO = listedTWO[["有價證券代號","有價證券名稱","市場別","產業別","公開發行/上市(櫃)/發行日"]]
-
-#     # ============上市股票代號+.TW============
-#     stock_1 = listed["有價證券代號"]
-#     stock_num = stock_1.apply(lambda x: str(x) + ".TW")
-#     stock_num.loc[len(stock_num)+1] = '0050.TW'
-#     stock_num.loc[len(stock_num)+1] = '^TWII'
-
-#     # ============上櫃股票代號+.TWO============
-#     stock_2 = listedTWO["有價證券代號"]
-#     stock_num2 = stock_2.apply(lambda x: str(x) + ".TWO")
-#     stock_num2.loc[len(stock_num2)+1] = 'IX0043.TWO'
-
-
-#     # ============concate全部股票代號============
-#     stock_num = pd.concat([stock_num, stock_num2], ignore_index=True) 
-#     stock_num = stock_num.sort_values(ascending=False).reset_index(drop = True)
-#     allstock_info = pd.concat([listed, listedTWO], ignore_index=True)
-#     allstock_info.columns = ["ID","有價證券名稱","市場別","產業別","公開發行/上市(櫃)/發行日"]
-#     allstock_info.set_index('ID', inplace = True)
-#     return stock_num, allstock_info
-# def main():
-#     # 定義要更新的股票代號
-#     spend_time = {'update_daily_data': 0, 'calculate_indicators': 0, 'generate_daily_summary': 0, 'calculate_rs_rate': 0}
-#     symbols, allstock_info = get_allstock_info()
-#     # 設置資料目錄
-#     data_dir = os.path.join(os.getcwd(), "data_test")
-
-#     # 設置 Line Notifier（可以替換成你的實際 Token）
-#     line_token = 'u7bfH6ad2gDcHvvPrtHR9sjJ8AYmQ7tNl0VBf7piO4q'
-#     notifier = LineNotifier(token=line_token)
-
-#     # 建立 StockDataHandler 和 IndicatorCalculator
-#     stock_handler = StockDataHandler(data_dir=data_dir, notifier=notifier)
-#     calculator = IndicatorCalculator(data_dir=data_dir)
-
-#     # 進行每日數據更新
-#     delay = 0
-#     today = datetime.now().date() - pd.Timedelta(days=delay)
-#     prev_day = today + pd.Timedelta(days=-6532)
-#     tomorrow = today + pd.Timedelta(days=1)
-#     print(today)
-#     print(prev_day)
-#     print(tomorrow)
-
-#     n = 10
-#     symbols = symbols.tolist()
-#     # symbols = ['9949.TWO', '1102.TW']
-
-
-#     ## update data
-
-#     program_start_time = datetime.now()
-#     split_symbols = [symbols[i:i + n] for i in range(0, len(symbols), n)]
-#     for symbol in split_symbols: # 分割成n個一組
-#         # stock_handler.update_historical_data(symbol, prev_day, today, rewrite=False)
-#         stock_handler.update_daily_data(symbol, rewrite=True)
-#     program_end_time = datetime.now()
-#     spend_time['update_daily_data'] = program_end_time - program_start_time
-    
-
-#     ## update indicators
-
-#     program_start_time = datetime.now()
-#     comparestock_path = os.path.join(data_dir, '^TWII.csv')
-#     comparestock = None
-#     indicator_failed_update_symbols = []
-#     # symbols = ['1563.TW']
-#     for i, symbol in enumerate(symbols):
-#         csv_file_path = os.path.join(data_dir, f"{symbol}.csv")
-#         if os.path.exists(csv_file_path):
-#             existing_data = pd.read_csv(csv_file_path, index_col="Date", parse_dates=["Date"])
-#             failed_symbol = calculator.calculate_indicators(symbol, existing_data, allstock_info, comparestock)
-#             if failed_symbol:
-#                 indicator_failed_update_symbols.append(failed_symbol)
-#         if symbol == '^TWII':
-#             comparestock = pd.read_csv(comparestock_path, index_col="Date", parse_dates=["Date"])
-#     program_end_time = datetime.now()
-#     spend_time['calculate_indicators'] = program_end_time - program_start_time
-#     # # 通知使用者
-#     if indicator_failed_update_symbols:
-#         notifier.send_message(f"以下股票的技術指標更新失敗：{indicator_failed_update_symbols}")
-
-#     ## generate daily summary
-
-#     program_start_time = datetime.now()
-#     output_directory = "C:/Users/User/Desktop/stock/全個股條件篩選"
-#     summary_generator = DailyStockSummaryGenerator(data_dir, output_directory)
-#     summary_generator.generate_daily_summary(symbols, today)
-#     program_end_time = datetime.now()
-#     spend_time['generate_daily_summary'] = program_end_time - program_start_time
-
-#     ## calculate rs rate
-
-#     program_start_time = datetime.now()
-#     rs_calculator = RSRateCalculator(data_dir=data_dir, output_directory=output_directory)
-#     rs_calculator.update_daily_rs_rate(today.strftime("%Y-%m-%d"), [20, 50, 250])
-#     program_end_time = datetime.now()
-#     spend_time['calculate_rs_rate'] = program_end_time - program_start_time
-
-#     if spend_time:
-#         notifier.send_message(f"程式執行時間：\n{spend_time}")
-
-#     ## calculate rs rate max 
-
-
-# if __name__ == "__main__":
-#     main()
-    
 import os
 from datetime import datetime
 import pandas as pd
@@ -185,7 +51,8 @@ class DailyStockTasks:
     def __init__(self, base_dir, data_dir: str, output_dir: str, line_token: str, ):
         self.data_dir = data_dir
         self.output_dir = output_dir
-        self.notifier = LineNotifier(token=line_token)
+        # self.notifier = LineNotifier(token=line_token)
+        self.notifier = None
         self.stock_handler = StockDataHandler(data_dir=self.data_dir, notifier=self.notifier)
         self.indicator_calculator = IndicatorCalculator(data_dir=self.data_dir)
         self.summary_generator = DailyStockSummaryGenerator(data_dir=self.data_dir, output_directory=self.output_dir)
@@ -220,7 +87,10 @@ class DailyStockTasks:
             if symbol == '^TWII':
                 comparestock = pd.read_csv(comparestock_path, index_col="Date", parse_dates=["Date"])
         if failed_symbols:
-            self.notifier.send_message(f"以下股票的技術指標更新失敗：{failed_symbols}")
+            if self.notifier is not None:
+                self.notifier.send_message(f"以下股票的技術指標更新失敗：{failed_symbols}")
+            else:
+                print(f"以下股票的技術指標更新失敗：{failed_symbols}")
 
     def generate_summary(self, symbols: list, date: datetime):
         """Step 3: 生成每日摘要"""
@@ -315,7 +185,10 @@ def main():
             do_task_text += f"{tasks_number}：{task}\n"
             print(f"{tasks_number}：{task}\n")
             tasks_number += 1
-    tasks.notifier.send_message(do_task_text)
+    if tasks.notifier is not None:
+        tasks.notifier.send_message(do_task_text)
+    else:
+        print(do_task_text)
 
     ## Step 1: 更新每日數據
     if DO_TASKS.get('update_data'):
@@ -382,7 +255,10 @@ def main():
     message_text += f"總計: {round(total_time, 1)} 秒"
 
     if spend_time:
-        tasks.notifier.send_message(message_text)
+        if tasks.notifier is not None:
+            tasks.notifier.send_message(message_text)
+        else:
+            print(message_text)
 
 
 if __name__ == "__main__":
